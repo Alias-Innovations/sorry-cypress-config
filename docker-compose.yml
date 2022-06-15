@@ -1,0 +1,63 @@
+version: '3.9'
+
+services:
+  mongo:
+    image: mongo:4.2
+    volumes:
+      - ./data/data-mongo-cypress:/data/db
+
+  director:
+    image: agoldis/sorry-cypress-director:latest
+    environment:
+      DASHBOARD_URL: http://localhost
+      MONGODB_URI: 'mongodb://mongo:27017'
+      MONGODB_DATABASE: 'sorry-cypress'
+      EXECUTION_DRIVER: '../execution/mongo/driver'
+      ALLOWED_KEYS: ""
+    ports:
+      - 1234:1234
+    depends_on:
+      - mongo
+
+  api:
+    image: agoldis/sorry-cypress-api:latest
+    environment:
+      MONGODB_URI: 'mongodb://mongo:27017'
+      MONGODB_DATABASE: 'sorry-cypress'
+    depends_on:
+      - mongo
+
+  dashboard:
+    image: agoldis/sorry-cypress-dashboard:latest
+    environment:
+      GRAPHQL_SCHEMA_URL: http://localhost/api
+      CI_URL: ""
+      PORT: 8080
+    depends_on:
+      - mongo
+      - api
+
+  oauth2:
+    image: bitnami/oauth2-proxy
+    environment:
+      OAUTH2_PROXY_CLIENT_ID: ""
+      OAUTH2_PROXY_CLIENT_SECRET: ""
+      OAUTH2_PROXY_COOKIE_SECRET: ""
+      OAUTH2_PROXY_EMAIL_DOMAINS: ""
+      OAUTH2_PROXY_COOKIE-SECURE: 0
+      OAUTH2_PROXY_REDIRECT_URL: "http://localhost"
+    depends_on:
+    - dashboard
+
+  nginx:
+    image: nginx:mainline-alpine
+    container_name: nginx
+    ports:
+      - 80:80
+      - 4000:4000
+    hostname: nginx
+    volumes:
+      - "./nginx.conf:/etc/nginx/conf.d/default.conf"
+    depends_on:
+      - oauth2
+      - dashboard
